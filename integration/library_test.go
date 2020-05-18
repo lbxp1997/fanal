@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aquasecurity/fanal/applier"
+
 	"github.com/aquasecurity/fanal/analyzer"
 	_ "github.com/aquasecurity/fanal/analyzer/command/apk"
 	_ "github.com/aquasecurity/fanal/analyzer/library/bundler"
@@ -33,7 +35,6 @@ import (
 	_ "github.com/aquasecurity/fanal/analyzer/pkg/dpkg"
 	_ "github.com/aquasecurity/fanal/analyzer/pkg/rpmcmd"
 	"github.com/aquasecurity/fanal/cache"
-	"github.com/aquasecurity/fanal/extractor/docker"
 	"github.com/aquasecurity/fanal/types"
 	godeptypes "github.com/aquasecurity/go-dep-parser/pkg/types"
 	dtypes "github.com/docker/docker/api/types"
@@ -132,12 +133,12 @@ func TestFanal_Library_DockerLessMode(t *testing.T) {
 				PruneChildren: true,
 			})
 
-			ext, cleanup, err := docker.NewDockerExtractor(ctx, tc.remoteImageName, opt)
+			ext, cleanup, err := applier.NewDockerExtractor(ctx, tc.remoteImageName, opt)
 			require.NoError(t, err, tc.name)
 			defer cleanup()
 
 			ac := analyzer.New(ext, c)
-			applier := analyzer.NewApplier(c)
+			applier := applier.NewApplier(c)
 
 			// run tests twice, one without cache and with cache
 			for i := 1; i <= 2; i++ {
@@ -180,12 +181,12 @@ func TestFanal_Library_DockerMode(t *testing.T) {
 			err = cli.ImageTag(ctx, tc.imageName, tc.imageFile)
 			require.NoError(t, err, tc.name)
 
-			ext, cleanup, err := docker.NewDockerExtractor(ctx, tc.imageFile, opt)
+			ext, cleanup, err := applier.NewDockerExtractor(ctx, tc.imageFile, opt)
 			require.NoError(t, err)
 			defer cleanup()
 
 			ac := analyzer.New(ext, c)
-			applier := analyzer.NewApplier(c)
+			applier := applier.NewApplier(c)
 
 			// run tests twice, one without cache and with cache
 			for i := 1; i <= 2; i++ {
@@ -225,9 +226,9 @@ func TestFanal_Library_TarMode(t *testing.T) {
 			c, err := cache.NewFSCache(d)
 			require.NoError(t, err)
 
-			applier := analyzer.NewApplier(c)
+			applier := applier.NewApplier(c)
 
-			ext, err := docker.NewArchiveImageExtractor(tc.imageFile)
+			ext, err := applier.NewArchiveImageExtractor(tc.imageFile)
 			require.NoError(t, err)
 
 			ac := analyzer.New(ext, c)
@@ -239,7 +240,7 @@ func TestFanal_Library_TarMode(t *testing.T) {
 	}
 }
 
-func runChecks(t *testing.T, ctx context.Context, ac analyzer.Config, applier analyzer.Applier, tc testCase) {
+func runChecks(t *testing.T, ctx context.Context, ac analyzer.Config, applier applier.Applier, tc testCase) {
 	imageInfo, err := ac.Analyze(ctx)
 	require.NoError(t, err, tc.name)
 	imageDetail, err := applier.ApplyLayers(imageInfo.ID, imageInfo.LayerIDs)

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aquasecurity/fanal/applier"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -20,16 +22,14 @@ import (
 
 	"github.com/aquasecurity/fanal/analyzer"
 	"github.com/aquasecurity/fanal/cache"
-	"github.com/aquasecurity/fanal/extractor"
-	"github.com/aquasecurity/fanal/extractor/docker"
 	"github.com/aquasecurity/fanal/types"
 	depTypes "github.com/aquasecurity/go-dep-parser/pkg/types"
 )
 
 func TestConfig_Analyze(t *testing.T) {
 	type fields struct {
-		Extractor extractor.Extractor
-		Cache     cache.ImageCache
+		Extractor walker.Extractor
+		Cache     cache.ArtifactCache
 	}
 	type args struct {
 		ctx context.Context
@@ -42,7 +42,7 @@ func TestConfig_Analyze(t *testing.T) {
 		missingLayerExpectation cache.ImageCacheMissingLayersExpectation
 		putLayerExpectations    []cache.ImageCachePutLayerExpectation
 		putImageExpectations    []cache.ImageCachePutImageExpectation
-		want                    types.ImageReference
+		want                    types.ArtifactReference
 		wantErr                 string
 	}{
 		{
@@ -83,7 +83,7 @@ func TestConfig_Analyze(t *testing.T) {
 				{
 					Args: cache.ImageCachePutImageArgs{
 						ImageID: "sha256:965ea09ff2ebd2b9eeec88cd822ce156f6674c7e99be082c7efac3c62f3ff652",
-						ImageInfo: types.ImageInfo{
+						ImageInfo: types.ArtifactInfo{
 							SchemaVersion: 1,
 							Architecture:  "amd64",
 							Created:       time.Date(2019, 10, 21, 17, 21, 42, 387111039, time.UTC),
@@ -93,10 +93,10 @@ func TestConfig_Analyze(t *testing.T) {
 					},
 				},
 			},
-			want: types.ImageReference{
-				Name:     "testdata/alpine.tar.gz",
-				ID:       "sha256:965ea09ff2ebd2b9eeec88cd822ce156f6674c7e99be082c7efac3c62f3ff652",
-				LayerIDs: []string{"sha256:77cae8ab23bf486355d1b3191259705374f4a11d483b24964d2f729dd8c076a0"},
+			want: types.ArtifactReference{
+				Name:    "testdata/alpine.tar.gz",
+				ID:      "sha256:965ea09ff2ebd2b9eeec88cd822ce156f6674c7e99be082c7efac3c62f3ff652",
+				BlobIDs: []string{"sha256:77cae8ab23bf486355d1b3191259705374f4a11d483b24964d2f729dd8c076a0"},
 			},
 		},
 		{
@@ -174,10 +174,10 @@ func TestConfig_Analyze(t *testing.T) {
 					},
 				},
 			},
-			want: types.ImageReference{
+			want: types.ArtifactReference{
 				Name: "testdata/vuln-image.tar.gz",
 				ID:   "sha256:58701fd185bda36cab0557bb6438661831267aa4a9e0b54211c4d5317a48aff4",
-				LayerIDs: []string{
+				BlobIDs: []string{
 					"sha256:932da51564135c98a49a34a193d6cd363d8fa4184d957fde16c9d8527b3f3b02",
 					"sha256:dffd9992ca398466a663c87c92cfea2a2db0ae0cf33fcb99da60eec52addbfc5",
 					"sha256:24df0d4e20c0f42d3703bf1f1db2bdd77346c7956f74f423603d651e8e5ae8a7",
@@ -186,7 +186,7 @@ func TestConfig_Analyze(t *testing.T) {
 			},
 		},
 		{
-			name:      "sad path, MissingLayers returns an error",
+			name:      "sad path, MissingBlobs returns an error",
 			imagePath: "testdata/alpine.tar.gz",
 			missingLayerExpectation: cache.ImageCacheMissingLayersExpectation{
 				Args: cache.ImageCacheMissingLayersArgs{
@@ -194,13 +194,13 @@ func TestConfig_Analyze(t *testing.T) {
 					LayerIDs: []string{"sha256:77cae8ab23bf486355d1b3191259705374f4a11d483b24964d2f729dd8c076a0"},
 				},
 				Returns: cache.ImageCacheMissingLayersReturns{
-					Err: xerrors.New("MissingLayers failed"),
+					Err: xerrors.New("MissingBlobs failed"),
 				},
 			},
-			wantErr: "MissingLayers failed",
+			wantErr: "MissingBlobs failed",
 		},
 		{
-			name:      "sad path, PutLayer returns an error",
+			name:      "sad path, PutBlob returns an error",
 			imagePath: "testdata/alpine.tar.gz",
 			missingLayerExpectation: cache.ImageCacheMissingLayersExpectation{
 				Args: cache.ImageCacheMissingLayersArgs{
@@ -244,7 +244,7 @@ func TestConfig_Analyze(t *testing.T) {
 			mockCache.ApplyPutLayerExpectations(tt.putLayerExpectations)
 			mockCache.ApplyPutImageExpectations(tt.putImageExpectations)
 
-			d, err := docker.NewArchiveImageExtractor(tt.imagePath)
+			d, err := applier.NewArchiveImageExtractor(tt.imagePath)
 			require.NoError(t, err, tt.name)
 
 			ac := analyzer.New(d, mockCache)
@@ -380,7 +380,7 @@ func TestApplier_ApplyLayers(t *testing.T) {
 						ImageID: "sha256:4791503518dff090d6a82f7a5c1fd71c41146920e2562fb64308e17ab6834b7e",
 					},
 					Returns: cache.LocalImageCacheGetImageReturns{
-						ImageInfo: types.ImageInfo{
+						ImageInfo: types.ArtifactInfo{
 							SchemaVersion: 1,
 						},
 					},
@@ -480,7 +480,7 @@ func TestApplier_ApplyLayers(t *testing.T) {
 						ImageID: "sha256:3bb70bd5fb37e05b8ecaaace5d6a6b5ec7834037c07ecb5907355c23ab70352d",
 					},
 					Returns: cache.LocalImageCacheGetImageReturns{
-						ImageInfo: types.ImageInfo{
+						ImageInfo: types.ArtifactInfo{
 							SchemaVersion: 1,
 							HistoryPackages: []types.Package{
 								{Name: "musl", Version: "1.1.23"},
@@ -556,7 +556,7 @@ func TestApplier_ApplyLayers(t *testing.T) {
 			},
 		},
 		{
-			name: "sad path GetLayer returns an error",
+			name: "sad path GetBlob returns an error",
 			args: args{
 				layerIDs: []string{
 					"sha256:932da51564135c98a49a34a193d6cd363d8fa4184d957fde16c9d8527b3f3b02",
@@ -573,7 +573,7 @@ func TestApplier_ApplyLayers(t *testing.T) {
 			wantErr: "layer cache missing",
 		},
 		{
-			name: "sad path GetLayer returns empty layer info",
+			name: "sad path GetBlob returns empty layer info",
 			args: args{
 				layerIDs: []string{
 					"sha256:932da51564135c98a49a34a193d6cd363d8fa4184d957fde16c9d8527b3f3b02",
@@ -771,7 +771,7 @@ func TestApplier_ApplyLayers(t *testing.T) {
 			c.ApplyGetLayerExpectations(tt.getLayerExpectations)
 			c.ApplyGetImageExpectations(tt.getImageExpectations)
 
-			a := analyzer.NewApplier(c)
+			a := applier.NewApplier(c)
 
 			got, err := a.ApplyLayers(tt.args.imageID, tt.args.layerIDs)
 			if tt.wantErr != "" {

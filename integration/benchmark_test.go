@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aquasecurity/fanal/extractor/docker"
-
 	"github.com/aquasecurity/fanal/analyzer"
 	_ "github.com/aquasecurity/fanal/analyzer/command/apk"
 	_ "github.com/aquasecurity/fanal/analyzer/library/bundler"
@@ -59,7 +57,7 @@ var testCases = []testCase{
 }
 
 func run(b *testing.B, ctx context.Context, imageName string, c cache.Cache, opt types.DockerOption) {
-	ext, cleanup, err := docker.NewDockerExtractor(ctx, imageName, opt)
+	ext, cleanup, err := applier.NewDockerExtractor(ctx, imageName, opt)
 	require.NoError(b, err)
 	defer cleanup()
 

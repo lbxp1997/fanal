@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	applier2 "github.com/aquasecurity/fanal/applier"
+
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +23,6 @@ import (
 
 	"github.com/aquasecurity/fanal/analyzer"
 	"github.com/aquasecurity/fanal/cache"
-	"github.com/aquasecurity/fanal/extractor/docker"
 	testdocker "github.com/aquasecurity/fanal/integration/docker"
 	"github.com/aquasecurity/fanal/types"
 
@@ -195,14 +196,14 @@ func analyze(ctx context.Context, imageRef string, opt types.DockerOption) (*typ
 	}
 	cli.NegotiateAPIVersion(ctx)
 
-	ext, cleanup, err := docker.NewDockerExtractor(ctx, imageRef, opt)
+	ext, cleanup, err := applier.NewDockerExtractor(ctx, imageRef, opt)
 	if err != nil {
 		return nil, err
 	}
 	defer cleanup()
 
 	ac := analyzer.New(ext, c)
-	applier := analyzer.NewApplier(c)
+	applier := applier2.NewApplier(c)
 
 	imageInfo, err := ac.Analyze(ctx)
 	if err != nil {
