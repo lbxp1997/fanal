@@ -1,7 +1,6 @@
 package remote
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -20,7 +19,6 @@ func NewArtifact(rawurl string, c cache.ArtifactCache) (artifact.Artifact, func(
 	if err != nil {
 		return nil, cleanup, err
 	}
-	fmt.Println(u.String())
 
 	tmpDir, err := ioutil.TempDir("", "fanal-remote")
 	if err != nil {
@@ -30,6 +28,7 @@ func NewArtifact(rawurl string, c cache.ArtifactCache) (artifact.Artifact, func(
 	_, err = git.PlainClone(tmpDir, false, &git.CloneOptions{
 		URL:      u.String(),
 		Progress: os.Stdout,
+		Depth:    1,
 	})
 	if err != nil {
 		return nil, cleanup, err
